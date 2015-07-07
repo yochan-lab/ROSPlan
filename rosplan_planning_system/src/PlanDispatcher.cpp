@@ -87,7 +87,7 @@ namespace KCL_rosplan {
 				// wait for action to complete
 				if(!dispatch_concurrent) {
 					int counter = 0;
-					while (ros::ok() && !action_recieved[current_action] && !action_completed[current_action]) {
+					while (ros::ok() && !action_received[current_action] && !action_completed[current_action]) {
 						ros::spinOnce();
 						loop_rate.sleep();
 						counter++;
@@ -97,7 +97,7 @@ namespace KCL_rosplan {
 							cancelMessage.action_id = currentMessage.action_id;
 							cancelMessage.name = "cancel_action";
 							action_publisher.publish(cancelMessage);
-                            break
+                            break;
 						}
 					}
 				}
