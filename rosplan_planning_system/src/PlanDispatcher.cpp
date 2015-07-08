@@ -87,11 +87,11 @@ namespace KCL_rosplan {
 				// wait for action to complete
 				if(!dispatch_concurrent) {
 					int counter = 0;
-					while (ros::ok() && !action_received[current_action] && !action_completed[current_action]) {
+					while (ros::ok() && !action_completed[current_action]) {
 						ros::spinOnce();
 						loop_rate.sleep();
 						counter++;
-						if (counter == 2000) {
+						if (counter == 2000 && !action_received[current_action]) {
 							ROS_INFO("KCL: (PS) Action %i timed out now. Cancelling...", currentMessage.action_id);
 							rosplan_dispatch_msgs::ActionDispatch cancelMessage;
 							cancelMessage.action_id = currentMessage.action_id;
