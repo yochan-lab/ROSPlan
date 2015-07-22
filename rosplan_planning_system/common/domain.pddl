@@ -1,31 +1,33 @@
-(define (domain turtlebot_demo)
+(define (domain peoplebot)
+(:requirements :strips :typing )
+(:types message person location)
 
-(:requirements :strips :typing :fluents :disjunctive-preconditions :durative-actions)
-
-(:types
-	waypoint 
-	robot
+(:predicates	(robotat ?x - location)
+		(personat ?x - person ?y - location)
+		(messagesender ?x - person ?y - message)
+		(hasmessage ?x - message)
+		(hasdeliveredmessage ?x - message ?y - person)
+        (hasmessagewaiting ?x - message ?y - person)
+		(hasvisited ?x - location)
 )
 
-(:predicates
-	(robot_at ?v - robot ?wp - waypoint)
-	(connected ?from ?to - waypoint)
-	(visited ?wp - waypoint)
-)
 
-(:functions
-	(distance ?wp1 ?wp2 - waypoint) 
-)
 
-;; Move between any two waypoints, avoiding terrain
-(:durative-action goto_waypoint
-	:parameters (?v - robot ?from ?to - waypoint)
-	:duration ( = ?duration 10)
-	:condition (and
-		(at start (robot_at ?v ?from)))
-	:effect (and
-		(at end (visited ?to))
-		(at start (not (robot_at ?v ?from)))
-		(at end (robot_at ?v ?to)))
+(:action move
+	:parameters (?loca - location ?locb - location)
+	:precondition (and (robotat ?loca))
+	:effect (and (robotat ?locb) (not(robotat ?loca)) (hasvisited ?locb))
+)
+	
+(:action getmessage
+	:parameters (?msg - message ?sender - person ?loc - location)
+	:precondition	(and (robotat ?loc) (personat ?sender ?loc) (messagesender ?sender ?msg))
+	:effect (hasmessage ?msg)
+	)
+
+(:action delivermessage
+	:parameters (?msg - message ?person - person ?loc - location)
+	:precondition	(and (hasmessage ?msg) (personat ?person ?loc) (robotat ?loc))
+	:effect	(and (not (hasmessage ?msg)) (hasdeliveredmessage ?msg ?person))
 )
 )

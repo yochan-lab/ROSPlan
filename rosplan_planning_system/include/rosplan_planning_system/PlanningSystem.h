@@ -42,6 +42,7 @@ namespace KCL_rosplan {
 		double mission_start_time;
 		double plan_start_time;
 		bool runPlanner();
+        bool plannerWorker();
 
 		/* plan list (for remembering previous plans) */
 		std::vector< std::vector<rosplan_dispatch_msgs::ActionDispatch> > plan_list;
@@ -49,7 +50,7 @@ namespace KCL_rosplan {
 
 	public:
 
-		SystemStatus system_status;
+		volatile SystemStatus system_status;
 
 		void commandCallback(const std_msgs::String::ConstPtr& msg);
 		bool runPlanningServer(std_srvs::Empty::Request &req, std_srvs::Empty::Response &res);
