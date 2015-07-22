@@ -1,8 +1,22 @@
+# Editor stuff
+*.swp
+*~
+.ropeproject
+
+# Output files
+rosplan_planning_system/common/plan*
+rosplan_planning_system/common/problem.pddl
+
+# Remove this line to save domains
+rosplan_planning_system/common/*
+rosplan_knowledge_base/common/*
+
 # Compiled Object files
 *.slo
 *.lo
 *.o
 *.obj
+*/out/
 
 # Compiled Dynamic libraries
 *.so
