@@ -67,7 +67,7 @@ namespace KCL_rosplan {
             std_srvs::Empty srv;
             // the planning should take long enough that the cancel goes through
             runPlanningServer(srv.request,srv.response);
-		} else if((msg->data == "pause" && msg->data == "resume") ||
+		} else if((msg->data == "pause" || msg->data == "resume") &&
                   system_status == PAUSED) {
 				ROS_INFO("KCL: (PS) Resuming dispatch");
 				plan_dispatcher.dispatch_paused = false;
