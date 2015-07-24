@@ -3,6 +3,8 @@
 #include <sstream>
 #include <string>
 #include <ctime>
+#include <boost/bind.hpp>
+#include <boost/thread.hpp>
 
 namespace KCL_rosplan {
 
@@ -57,21 +59,16 @@ namespace KCL_rosplan {
 	void PlanningSystem::commandCallback(const std_msgs::String::ConstPtr& msg) {
 		ROS_INFO("KCL: (PS) Command received: %s", msg->data.c_str());
 		if(msg->data == "plan") {
-			if(system_status == READY) {
-				ROS_INFO("KCL: (PS) Processing planning request");
-				std_srvs::Empty srv;
-				runPlanningServer(srv.request,srv.response);
-			}
-		} else if(msg->data == "pause") {
-			if(system_status == DISPATCHING && !plan_dispatcher.dispatch_paused) {
-				ROS_INFO("KCL: (PS) Pausing dispatch");
-				plan_dispatcher.dispatch_paused = true;
-				system_status = PAUSED;
-				// produce status message
-				std_msgs::String statusMsg;
-				statusMsg.data = "Paused";
-				state_publisher.publish(statusMsg);
-			} else if(system_status == PAUSED) {
+            if (system_status != READY) {
+                ROS_INFO("Cancelling dispatch before replan");
+                plan_dispatcher.plan_cancelled = true;
+            }
+            ROS_INFO("KCL: (PS) Processing planning request");
+            std_srvs::Empty srv;
+            // the planning should take long enough that the cancel goes through
+            runPlanningServer(srv.request,srv.response);
+		} else if((msg->data == "pause" || msg->data == "resume") &&
+                  system_status == PAUSED) {
 				ROS_INFO("KCL: (PS) Resuming dispatch");
 				plan_dispatcher.dispatch_paused = false;
 				system_status = DISPATCHING;
@@ -79,8 +76,16 @@ namespace KCL_rosplan {
 				std_msgs::String statusMsg;
 				statusMsg.data = "Dispatching";
 				state_publisher.publish(statusMsg);
-			}
+        } else if (msg->data == "pause" && system_status == DISPATCHING) {
+				ROS_INFO("KCL: (PS) Pausing dispatch");
+				plan_dispatcher.dispatch_paused = true;
+				system_status = PAUSED;
+				// produce status message
+				std_msgs::String statusMsg;
+				statusMsg.data = "Paused";
+				state_publisher.publish(statusMsg);
 		} else if(msg->data == "cancel") {
+            // if ready to receive, cancel does nothing
 			switch(system_status) {
 				case PLANNING:
 				case DISPATCHING:
@@ -88,24 +93,26 @@ namespace KCL_rosplan {
 					ROS_INFO("KCL: (PS) Cancelling");
 					plan_dispatcher.plan_cancelled = true;
 					break;
-			}
-			if(system_status == PAUSED ) {
-				plan_dispatcher.dispatch_paused = false;
-				system_status = DISPATCHING;
-				// produce status message
-				std_msgs::String statusMsg;
-				statusMsg.data = "Dispatching";
-				state_publisher.publish(statusMsg);
-			}
-		}
+                case READY:
+                default:
+                    break;
+            }
+        }
 	}
 
 	/**
 	 * planning system service method; prepares planning; main loop.
 	 */
 	bool PlanningSystem::runPlanningServer(std_srvs::Empty::Request &req, std_srvs::Empty::Response &res) {
+        boost::thread(boost::bind(&PlanningSystem::plannerWorker, this));
+    };
 
-		if(system_status != READY) return false;
+    bool PlanningSystem::plannerWorker(){
+        // Wait until the last plan finishes.
+        ros::Rate loop_rate(10);
+		while(system_status != READY) {
+            loop_rate.sleep();
+        }
 
 		system_status = PLANNING;
 		std_msgs::String statusMsg;

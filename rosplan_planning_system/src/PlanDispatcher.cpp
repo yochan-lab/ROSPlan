@@ -16,6 +16,21 @@ namespace KCL_rosplan {
 		action_completed.clear();
 	}
 
+    /** Handles pauses, cancels, spins, and shutdowns.
+     *    For pauses, blocks until resumed or quit.
+     *
+     *    @param rate_first: Use the loop rate once even if not paused
+     *    @returns true if no action needed, false means cancel
+     */ 
+    bool PlanDispatcher::check_for_signals(bool rate_first /* = false */) {
+		ros::Rate loop_rate(10);
+        //if not paused, never enters this.
+        do {
+            if (rate_first || dispatch_paused)
+                loop_rate.sleep();
+        } while (ros::ok() && dispatch_paused && !plan_cancelled);
+        return ros::ok() && !plan_cancelled;
+    }
 	/*-----------------*/
 	/* action dispatch */
 	/*-----------------*/
@@ -31,31 +46,22 @@ namespace KCL_rosplan {
 		ROS_INFO("KCL: (PS) Dispatching plan");
 		replan_requested = false;
 		bool repeatAction = false;
+
 		while (ros::ok() && actionList.size() > current_action) {
 
-			// loop while dispatch is paused
-			while (ros::ok() && dispatch_paused) {
-				ros::spinOnce();
-				loop_rate.sleep();
-			}
+            if (!check_for_signals()) return false;
 
-			// cancel plan
-			if(plan_cancelled) {
-				break;
-			}
-
-			// get next action
+					// get next action
 			rosplan_dispatch_msgs::ActionDispatch currentMessage = actionList[current_action];
 			if((unsigned int)currentMessage.action_id != current_action)
 				ROS_ERROR("KCL: (PS) Message action_id [%d] does not meet expected [%zu]", currentMessage.action_id, current_action);
 
 			// loop while waiting for dispatch time
-			if(!dispatch_on_completion) {
+			/*if(!dispatch_on_completion) {
 				double wait_period = 10.0;
 				int wait_print = (int)(currentMessage.dispatch_time + planStart - ros::WallTime::now().toSec()) / wait_period;
-				while (ros::ok() && ros::WallTime::now().toSec() < currentMessage.dispatch_time + planStart) {
-					ros::spinOnce();
-					loop_rate.sleep();
+				while (ros::WallTime::now().toSec() < currentMessage.dispatch_time + planStart && 
+                       !check_for_signals(true)) {
 					double remaining = planStart + currentMessage.dispatch_time - ros::WallTime::now().toSec();
 					if(wait_print > (int)remaining / wait_period) {
 						ROS_INFO("KCL: (PS) Waiting %f before dispatching action: [%i, %s, %f, %f]",
@@ -64,8 +70,9 @@ namespace KCL_rosplan {
 						wait_print--;
 					}
 				}
-			}
+			}*/
 
+            if (!check_for_signals()) return false;
 			if(!checkPreconditions(currentMessage)) {
 				ROS_INFO("KCL: (PS) Preconditions not achieved [%i, %s]", currentMessage.action_id, currentMessage.name.c_str());
 
@@ -85,24 +92,45 @@ namespace KCL_rosplan {
 				if(late_print>0.1) ROS_INFO("KCL: (PS) Action [%i] is %f second(s) late", currentMessage.action_id, late_print);
 
 				// wait for action to complete
+                bool currently_paused = false;
 				if(!dispatch_concurrent) {
 					int counter = 0;
-					while (ros::ok() && !action_completed[current_action]) {
-						ros::spinOnce();
+					while (ros::ok() && !action_received[current_action] && !action_completed[current_action]) {
 						loop_rate.sleep();
 						counter++;
-						if (counter == 2000 && !action_received[current_action]) {
-							ROS_INFO("KCL: (PS) Action %i timed out now. Cancelling...", currentMessage.action_id);
+                        // We have actions involved now, so we can't just look for signals
+                        // Has timed out for start or was cancelled
+						if ((counter > 200 && !action_received[current_action]) || plan_cancelled) {
+							ROS_INFO("KCL: (PS) Action %i timed out or cancelled. Informing runners...", currentMessage.action_id);
 							rosplan_dispatch_msgs::ActionDispatch cancelMessage;
 							cancelMessage.action_id = currentMessage.action_id;
 							cancelMessage.name = "cancel_action";
 							action_publisher.publish(cancelMessage);
                             break;
-						}
+						} else if (dispatch_paused && !currently_paused) {
+                            // start pausing. 
+							ROS_INFO("KCL: (PS) Action %i paused. Informing runners...", currentMessage.action_id);
+							rosplan_dispatch_msgs::ActionDispatch pauseMessage;
+							pauseMessage.action_id = currentMessage.action_id;
+							pauseMessage.name = "pause_action";
+							action_publisher.publish(pauseMessage);
+                            currently_paused = true;
+
+                        } else if (!dispatch_paused && currently_paused) {
+                            // resume after unpause
+							ROS_INFO("KCL: (PS) Action %i resumed. Informing runners...", currentMessage.action_id);
+							rosplan_dispatch_msgs::ActionDispatch resumeMessage;
+							resumeMessage.action_id = currentMessage.action_id;
+							resumeMessage.name = "resume_action";
+							action_publisher.publish(resumeMessage);
+                            currently_paused = false;
+                       }
+
 					}
 				}
 			}
 
+            if (!check_for_signals()) return false;
 			// get ready for next action
 			if(!repeatAction) current_action++;
 			repeatAction = false;
@@ -175,7 +203,8 @@ namespace KCL_rosplan {
 
 		} else {
 			ROS_ERROR("KCL: (PS) Failed to call service /kcl_rosplan/query_knowledge_base");
-		}
+		    return false;
+        }
 	}
 
 	/*------------------*/

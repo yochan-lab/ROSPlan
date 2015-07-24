@@ -23,6 +23,9 @@ catkin_package(
   CATKIN_DEPENDS roscpp rospy std_msgs std_srvs diagnostic_msgs rosplan_dispatch_msgs rosplan_knowledge_msgs
 )
 
+# Output build info for VIM
+set( CMAKE_EXPORT_COMPILE_COMMANDS 1 )
+
 ###########
 ## Build ##
 ###########

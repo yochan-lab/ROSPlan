@@ -21,7 +21,10 @@ namespace KCL_rosplan
 		/* check preconditions are true */
 		bool checkPreconditions(rosplan_dispatch_msgs::ActionDispatch msg);
 
-		/* action dispatch list (current plan) */
+        /* handle pauses, cancels, and shutdowns */
+        bool check_for_signals(bool rate_first = false);
+		
+        /* action dispatch list (current plan) */
 		size_t current_action;
 
 		/* dispatch state */
@@ -36,8 +39,8 @@ namespace KCL_rosplan
 		/* dispatch modes */
 		bool dispatch_on_completion;
 		bool dispatch_concurrent;
-		bool dispatch_paused;
-		bool plan_cancelled;
+		volatile bool dispatch_paused;
+		volatile bool plan_cancelled;
 
 		int getCurrentAction();
 		void reset();
