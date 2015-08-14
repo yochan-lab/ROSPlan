@@ -95,7 +95,7 @@ namespace KCL_rosplan {
                 bool currently_paused = false;
 				if(!dispatch_concurrent) {
 					int counter = 0;
-					while (ros::ok() && !action_received[current_action] && !action_completed[current_action]) {
+					while (ros::ok() && !action_completed[current_action]) {
 						loop_rate.sleep();
 						counter++;
                         // We have actions involved now, so we can't just look for signals
